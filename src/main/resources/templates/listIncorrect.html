@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Неопред координаты</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+</head>
+<body>
+
+<div class="container-xl">
+    <h3>Координаты неопределены:</h3>
+    <table class="table table-hover" th:if="${incorrects}">
+        <thead>
+        <tr>
+            <th>№</th>
+            <th>Город</th>
+            <th>Адрес</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="incorrect, iterStat : ${incorrects}">
+            <td th:text="${iterStat.count}"></td>
+            <td th:text="${incorrect.city}">
+            <td th:text="${incorrect.address}">
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

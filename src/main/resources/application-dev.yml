@@ -1,0 +1,12 @@
+server:
+  port: 9090
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://10.75.40.22:3306/geolocation?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Europe/Moscow
+    username: user
+    password: pass
+  jpa:
+    hibernate:
+      ddl-auto: none
