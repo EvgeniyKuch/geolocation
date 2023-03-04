@@ -1,0 +1,9 @@
+server:
+  port: 9004
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/geolocation?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Europe/Moscow
+    username: user
+    password: pass
