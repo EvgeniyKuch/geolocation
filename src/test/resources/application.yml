@@ -1,0 +1,3 @@
+yandex:
+  geo-apikey: 1234
+  max-batch-size: 2

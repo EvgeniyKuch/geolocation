@@ -15,8 +15,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestOperations;
 import ru.otus.geolocation.domain.GeoRequest;
 import ru.otus.geolocation.domain.ShopAddress;
+import ru.otus.geolocation.domain.ShopPoint;
+import ru.otus.geolocation.dto.geo.AnswerGeoMatrix;
+import ru.otus.geolocation.dto.geo.OrderShop;
 import ru.otus.geolocation.repository.GeoRequestRepository;
 
 import javax.net.ssl.SSLContext;
@@ -24,11 +28,12 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.net.URLEncoder;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * Поиск координат по строке адреса через сервис Яндекса.
@@ -50,15 +55,24 @@ public class YandexGeoAPIService {
 
     private final GeoRequestRepository geoRepository;
 
+    private final BuilderStringRequestService urlService;
+
+    private final RestOperations restOperations;
+
     /**
      * Конструктор с заданными параметрами.
      *
      * @param apikey ключ, для обращения к API Яндекса.
      */
-    public YandexGeoAPIService(@Value(value = "${yandex.geo-apikey}") String apikey, GeoRequestRepository geoRepository) {
+    public YandexGeoAPIService(@Value(value = "${yandex.geo-apikey}") String apikey,
+                               GeoRequestRepository geoRepository,
+                               BuilderStringRequestService builderStringRequestService,
+                               RestOperations restOperations) {
         this.apikey = apikey;
         this.apiKeyMasked = apikey.replaceAll("(?<=^.{5}).*(?=.{5}$)", new String(new char[apikey.length() - 10]).replace("\0", "*"));
         this.geoRepository = geoRepository;
+        this.urlService = builderStringRequestService;
+        this.restOperations = restOperations;
     }
 
     /**
@@ -84,7 +98,7 @@ public class YandexGeoAPIService {
         GeoRequest geoRequest = new GeoRequest(apiKeyMasked, address, Instant.now(), -1D, -1D);
         try {
             // Яндекс сначала возвращает долготу, а потом широту
-            HttpGet httpget = new HttpGet("https://geocode-maps.yandex.ru/1.x/?format=json&results=10&lang=ru_RU&geocode=" + URLEncoder.encode(address, "UTF-8") + "&apikey=" + this.apikey);
+            HttpGet httpget = new HttpGet(urlService.getRequestGeoLocation(address));
             HttpClient httpClient = getHttpClient();
             HttpResponse response = null;
             response = httpClient.execute(httpget);
@@ -118,7 +132,31 @@ public class YandexGeoAPIService {
         return result;
     }
 
-    private static JsonObject getJsonObjectByPath(JsonObject object, String... path) {
+    /**
+     * Запрашивает у Яндекса расстояния от точки, которую назвал абонент, до магазинов в этом городе.
+     * Яндекс возвращает матрицу расстояний в том же порядке, в каком перечислены магазины.
+     * Метод сортирует по увеличению расстояния.
+     * @param latitude широта абонент
+     * @param longitude долгота абонента
+     * @param shopPoints магазины в городе абонента
+     * @return отсортированные по возрастанию расстояния (по дорогам) от абонента магазины
+     */
+    public List<ShopPoint> getOrderedShopPoint(double latitude, double longitude, List<ShopPoint> shopPoints) {
+        List<ShopPoint> result = new ArrayList<>();
+        AtomicInteger order = new AtomicInteger(0);
+        urlService.getRequestsDistanceMatrix(latitude, longitude, shopPoints)
+                .stream().map(url -> restOperations.getForObject(url, AnswerGeoMatrix.class))
+                .filter(Objects::nonNull)
+                .flatMap(answer -> Stream.of(answer.getRows()))
+                .flatMap(row -> Stream.of(row.getElements()))
+                .filter(row -> "OK".equals(row.getStatus()))
+                .map(element -> new OrderShop(order.getAndIncrement(), element.getDistance().getValue()))
+                .sorted(Comparator.comparingDouble(OrderShop::getDistance))
+                .forEach(orderShop -> result.add(shopPoints.get(orderShop.getOrder())));
+        return result;
+    }
+
+    private JsonObject getJsonObjectByPath(JsonObject object, String... path) {
         try {
             for (int i = 0; i < path.length - 1; i++) {
                 object = object.get(path[i]).getAsJsonObject();
@@ -137,7 +175,7 @@ public class YandexGeoAPIService {
      * @param path
      * @return
      */
-    private static String getJsonStringByPath(JsonObject object, String... path) {
+    private String getJsonStringByPath(JsonObject object, String... path) {
         try {
             for (int i = 0; i < path.length - 1; i++) {
                 object = object.get(path[i]).getAsJsonObject();

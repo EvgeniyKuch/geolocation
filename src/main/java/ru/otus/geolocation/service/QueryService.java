@@ -129,10 +129,8 @@ public class QueryService {
     }
 
     public List<ShopPoint> nearestShops(double latitude, double longitude, List<ShopPoint> shopPoints) {
-        return shopPoints.stream()
-                .sorted(Comparator.comparingDouble(shopPoint -> distance(latitude, longitude, shopPoint)))
+        return yandexGeoAPIService.getOrderedShopPoint(latitude, longitude, shopPoints).stream()
                 .limit(3)
-                .filter(shopPoint -> distance(latitude, longitude, shopPoint) < 45_000)
                 .collect(Collectors.toList());
     }
 
